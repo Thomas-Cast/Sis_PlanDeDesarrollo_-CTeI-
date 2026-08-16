@@ -1,6 +1,6 @@
 """
 menu_consola.py
-Menu interactivo por consola (alternativa sin interfaz grafica).
+Menu interactivo por consola.
 """
 from linked_list import DoublyCircularLinkedList
 
