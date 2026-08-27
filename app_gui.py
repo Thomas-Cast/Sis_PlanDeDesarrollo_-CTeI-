@@ -1,159 +1,70 @@
 """
 app_gui.py
-Interfaz grafica con tres paneles:
-- Izquierda: formulario de entrada (con autocompletado al seleccionar codigo)
-- Centro: lienzo con zoom y desplazamiento para visualizar la lista enlazada
-- Derecha: pestañas para tabla de datos (con los codigos reales) y registro de eventos
-Ademas incluye graficos, exportacion/importacion, alertas y demo paso a paso.
+Interfaz gráfica con tres paneles:
+- Izquierda: formulario de entrada (con combos para municipio, actor, grupo)
+- Centro: lienzo interactivo (zoom con Ctrl+rueda, desplazamiento con arrastre)
+- Derecha: pestañas para tabla de datos y registro de eventos
 
-Autor: Estudiante
+Ahora utiliza las clases Iniciativa, Nodo y ListaEnlazada (Programación Orientada a Objetos).
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox
 import threading
 import time
-import importlib
 
-from linked_list import DoublyCircularLinkedList
-
-# ------------------------------------------------------------
-# Datos de referencia para autocompletar (basados en las tablas)
-# ------------------------------------------------------------
-DATOS_REFERENCIA = {
-    "SCT02": {
-        "nombre": "Investigacion sobre capacidades CTel de las provincias",
-        "meta": 1,
-        "municipio": "Bogota",
-        "actor": "Gobernacion",
-        "grupo": "Ciencias Sociales"
-    },
-    "SCT03": {
-        "nombre": "Consolidar red de centros de innovacion y emprendimientos",
-        "meta": 1,
-        "municipio": "Soacha",
-        "actor": "Universidad",
-        "grupo": "Ingenieria"
-    },
-    "SCT04": {
-        "nombre": "Apoyar proyecto para Parque Regional de Innovacion",
-        "meta": 1,
-        "municipio": "Zipaquira",
-        "actor": "Gobernacion",
-        "grupo": "Ciencias Sociales"
-    },
-    "SCT05": {
-        "nombre": "Implementar red de Mentores para emprendedores",
-        "meta": 1,
-        "municipio": "Facatativa",
-        "actor": "Empresa privada",
-        "grupo": "Innovacion social"
-    },
-    "SCT06": {
-        "nombre": "Beneficiar empresas con proyectos CTel para sofisticacion",
-        "meta": 200,
-        "municipio": "Bogota",
-        "actor": "Gobernacion",
-        "grupo": "Ciencias Sociales"
-    },
-    "SCT08": {
-        "nombre": "Proyectos agropecuarios con CTel para produccion sostenible",
-        "meta": 2000,
-        "municipio": "Facatativa",
-        "actor": "Asociacion campesina",
-        "grupo": "Agro"
-    },
-    "SCT09": {
-        "nombre": "Incorporar tecnologias ambientales y renovables",
-        "meta": 180,
-        "municipio": "Girardot",
-        "actor": "ONG",
-        "grupo": "Tecnologia"
-    },
-    "SCT10": {
-        "nombre": "Becas de formacion doctoral",
-        "meta": 20,
-        "municipio": "Bogota",
-        "actor": "Universidad",
-        "grupo": "Ciencias Sociales"
-    },
-    "SCT11": {
-        "nombre": "Becas de formacion para maestrias",
-        "meta": 100,
-        "municipio": "Bogota",
-        "actor": "Universidad",
-        "grupo": "Ciencias Sociales"
-    },
-    "SCT13": {
-        "nombre": "Impulsar semilleros de investigacion temprana",
-        "meta": 15,
-        "municipio": "Zipaquira",
-        "actor": "Alcaldia",
-        "grupo": "Innovacion social"
-    },
-    "SCT14": {
-        "nombre": "Registro de productos de investigacion o propiedad industrial",
-        "meta": 90,
-        "municipio": "Bogota",
-        "actor": "Gobernacion",
-        "grupo": "Ciencias Sociales"
-    },
-    "STI02": {
-        "nombre": "Capacitar en IA, Blockchain y habilidades digitales",
-        "meta": 30000,
-        "municipio": "Zipaquira",
-        "actor": "Empresa privada",
-        "grupo": "Tecnologia"
-    },
-    "STI07": {
-        "nombre": "Participar en desarrollo de centros de inteligencia artificial",
-        "meta": 3,
-        "municipio": "Bogota",
-        "actor": "Universidad",
-        "grupo": "Tecnologia"
-    }
-}
+from Iniciativa import Iniciativa
+from ListaEnlazada import ListaEnlazada
 
 # ------------------------------------------------------------
-# Configuracion del dibujo
+# Configuración del dibujo
 # ------------------------------------------------------------
-NODE_WIDTH = 200
-NODE_HEIGHT = 80
+ANCHO_NODO = 200
+ALTO_NODO = 80
 PADDING_X = 40
 PADDING_Y = 60
 ZOOM_FACTOR = 1.1
 
+# Colores por grupo para distinguir visualmente los nodos
+COLORES_GRUPO = {
+    "Ciencias Sociales": "#FFD1DC",
+    "Ingenieria": "#B0D9FF",
+    "Ciencias Medicas": "#C1E1C1",
+    "Tecnologia": "#FCE6A9",
+    "Agro": "#D4C4A8",
+    "Innovacion social": "#E6CCFF",
+    "Otro": "#D3D3D3"
+}
 
 class App:
-    def __init__(self, root: tk.Tk):
+    def __init__(self, root):
         self.root = root
         root.title("Gestor de Iniciativas CTeI - Cundinamarca")
-        root.geometry("1300x800")
+        root.geometry("1300x750")
 
-        self.lst = DoublyCircularLinkedList()
+        # Instancia de la lista enlazada (ahora con objetos Iniciativa)
+        self.lista = ListaEnlazada()
 
-        # ---------- Panel izquierdo: formulario ----------
+        # ---------- Panel izquierdo: Formulario ----------
         left_frame = ttk.LabelFrame(root, text="Datos de la iniciativa", padding=10)
         left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=8)
 
-        # Codigo (con evento para autocompletar)
+        # Código
         ttk.Label(left_frame, text="Codigo:").grid(row=0, column=0, sticky=tk.W, pady=3)
-        self.code_var = tk.StringVar()
-        self.code_entry = ttk.Entry(left_frame, textvariable=self.code_var, width=15)
-        self.code_entry.grid(row=0, column=1, pady=3)
-        self.code_entry.bind("<KeyRelease>", self.on_code_change)  # autocompletar al escribir
+        self.codigo_var = tk.StringVar()
+        ttk.Entry(left_frame, textvariable=self.codigo_var, width=15).grid(row=0, column=1, pady=3)
 
         # Nombre
         ttk.Label(left_frame, text="Nombre:").grid(row=1, column=0, sticky=tk.W, pady=3)
-        self.name_var = tk.StringVar()
-        ttk.Entry(left_frame, textvariable=self.name_var, width=30).grid(row=1, column=1, pady=3)
+        self.nombre_var = tk.StringVar()
+        ttk.Entry(left_frame, textvariable=self.nombre_var, width=25).grid(row=1, column=1, pady=3)
 
         # Meta
         ttk.Label(left_frame, text="Meta (numero):").grid(row=2, column=0, sticky=tk.W, pady=3)
         self.meta_var = tk.StringVar()
         ttk.Entry(left_frame, textvariable=self.meta_var, width=10).grid(row=2, column=1, pady=3, sticky=tk.W)
 
-        # Municipio (combo)
+        # Municipio (Combo)
         ttk.Label(left_frame, text="Municipio:").grid(row=3, column=0, sticky=tk.W, pady=3)
         self.municipio_var = tk.StringVar()
         municipios = ["Bogota", "Soacha", "Zipaquira", "Facatativa", "Girardot",
@@ -163,7 +74,7 @@ class App:
         self.municipio_combo.grid(row=3, column=1, pady=3)
         self.municipio_combo.current(0)
 
-        # Actor (combo)
+        # Actor (Combo)
         ttk.Label(left_frame, text="Actor:").grid(row=4, column=0, sticky=tk.W, pady=3)
         self.actor_var = tk.StringVar()
         actores = ["Gobernacion", "Universidad", "Empresa privada", "Asociacion campesina",
@@ -173,7 +84,7 @@ class App:
         self.actor_combo.grid(row=4, column=1, pady=3)
         self.actor_combo.current(0)
 
-        # Grupo (combo)
+        # Grupo (Combo)
         ttk.Label(left_frame, text="Grupo:").grid(row=5, column=0, sticky=tk.W, pady=3)
         self.grupo_var = tk.StringVar()
         grupos = ["Ciencias Sociales", "Ingenieria", "Ciencias Medicas",
@@ -183,176 +94,105 @@ class App:
         self.grupo_combo.grid(row=5, column=1, pady=3)
         self.grupo_combo.current(0)
 
-        # Botones de operacion
+        # Botones de operación
         btn_frame = ttk.Frame(left_frame)
         btn_frame.grid(row=6, column=0, columnspan=2, pady=10)
-        ttk.Button(btn_frame, text="Insertar al frente", command=self.add_front).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame, text="Insertar al final", command=self.add_back).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="Insertar al frente", command=self.insertar_frente).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="Insertar al final", command=self.insertar_final).pack(side=tk.LEFT, padx=2)
 
         btn_frame2 = ttk.Frame(left_frame)
         btn_frame2.grid(row=7, column=0, columnspan=2, pady=5)
-        ttk.Button(btn_frame2, text="Buscar por codigo", command=self.find_node).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame2, text="Eliminar por codigo", command=self.remove_node_by_code).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame2, text="Buscar por codigo", command=self.buscar).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame2, text="Eliminar por codigo", command=self.eliminar).pack(side=tk.LEFT, padx=2)
 
         btn_frame3 = ttk.Frame(left_frame)
         btn_frame3.grid(row=8, column=0, columnspan=2, pady=5)
-        ttk.Button(btn_frame3, text="Limpiar lista", command=self.clear_list).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame3, text="Demo paso a paso", command=self.start_demo_thread).pack(side=tk.LEFT, padx=2)
-        ttk.Button(btn_frame3, text="Ver alertas", command=self.show_alerts).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame3, text="Limpiar lista", command=self.limpiar).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame3, text="Demo paso a paso", command=self.iniciar_demo).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame3, text="Ver alertas", command=self.mostrar_alertas).pack(side=tk.LEFT, padx=2)
 
-        # ---------- Panel central: lienzo con scroll y zoom ----------
+        # ---------- Panel central: Lienzo con scroll y zoom ----------
         canvas_frame = ttk.LabelFrame(root, text="Visualizacion de la lista enlazada", padding=5)
         canvas_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=8, pady=8)
 
-        self.canvas = tk.Canvas(canvas_frame, bg="#f0f8ff", highlightthickness=1,
-                                highlightbackground="#aaa", width=500, height=500)
+        self.canvas = tk.Canvas(canvas_frame, bg="#f0f8ff", highlightthickness=1, highlightbackground="#aaa")
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
+        # Scrollbars
         v_scroll = ttk.Scrollbar(canvas_frame, orient=tk.VERTICAL, command=self.canvas.yview)
         v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         h_scroll = ttk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
         h_scroll.pack(side=tk.BOTTOM, fill=tk.X)
         self.canvas.configure(yscrollcommand=v_scroll.set, xscrollcommand=h_scroll.set)
 
-        self.canvas_width = 2000
-        self.canvas_height = 2000
-        self.canvas.config(scrollregion=(0, 0, self.canvas_width, self.canvas_height))
+        # Tamaño del área de dibujo (grande para permitir muchos nodos)
+        self.canvas_ancho = 2000
+        self.canvas_alto = 2000
+        self.canvas.config(scrollregion=(0, 0, self.canvas_ancho, self.canvas_alto))
 
-        # Zoom y arrastre
-        self.zoom_level = 1.0
+        # Variables para zoom y desplazamiento
+        self.zoom = 1.0
         self.offset_x = 0
         self.offset_y = 0
-        self.canvas.bind("<MouseWheel>", self.on_mousewheel)
-        self.canvas.bind("<Control-MouseWheel>", self.on_zoom)
-        self.canvas.bind("<ButtonPress-1>", self.start_drag)
-        self.canvas.bind("<B1-Motion>", self.on_drag)
+
+        # Eventos del mouse (zoom y pan)
+        self.canvas.bind("<MouseWheel>", self.on_scroll)          # Desplazamiento vertical
+        self.canvas.bind("<Control-MouseWheel>", self.on_zoom)    # Zoom con Ctrl
+        self.canvas.bind("<ButtonPress-1>", self.iniciar_arrastre)
+        self.canvas.bind("<B1-Motion>", self.arrastrar)
+
         self.drag_start_x = 0
         self.drag_start_y = 0
 
-        # ---------- Panel derecho: pestañas (Tabla, Log, Graficos) ----------
-        right_frame = ttk.LabelFrame(root, text="Datos y analisis", padding=5)
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=8, pady=8)
+        # ---------- Panel derecho: Tabla y Registro (pestañas) ----------
+        right_frame = ttk.LabelFrame(root, text="Datos y eventos", padding=5)
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, padx=8, pady=8)
 
-        self.notebook = ttk.Notebook(right_frame, width=500, height=600)
+        self.notebook = ttk.Notebook(right_frame, width=450, height=600)
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
         # Pestaña 1: Tabla de iniciativas
-        tab_table = ttk.Frame(self.notebook)
-        self.notebook.add(tab_table, text="Lista de iniciativas")
+        tab_tabla = ttk.Frame(self.notebook)
+        self.notebook.add(tab_tabla, text="Lista de iniciativas")
+        self.tabla = ttk.Treeview(tab_tabla, columns=("Codigo", "Nombre", "Meta", "Municipio", "Actor", "Grupo"),
+                                  show="headings", height=20)
+        for col in ("Codigo", "Nombre", "Meta", "Municipio", "Actor", "Grupo"):
+            self.tabla.heading(col, text=col)
+            self.tabla.column(col, width=70, anchor=tk.W)
+        self.tabla.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_tabla = ttk.Scrollbar(tab_tabla, orient=tk.VERTICAL, command=self.tabla.yview)
+        scroll_tabla.pack(side=tk.RIGHT, fill=tk.Y)
+        self.tabla.configure(yscrollcommand=scroll_tabla.set)
 
-        # Treeview con las columnas
-        columns = ("ID", "Nombre", "Meta", "Municipio", "Actor", "Grupo")
-        self.tree = ttk.Treeview(tab_table, columns=columns, show="headings", height=20)
-        for col in columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=80, anchor=tk.W)
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        tree_scroll = ttk.Scrollbar(tab_table, orient=tk.VERTICAL, command=self.tree.yview)
-        tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self.tree.configure(yscrollcommand=tree_scroll.set)
-
-        # Al hacer clic en un elemento de la tabla, autocompletar el formulario
-        self.tree.bind("<ButtonRelease-1>", self.on_table_select)
-
-        # Pestaña 2: Registro de eventos
+        # Pestaña 2: Registro de eventos (Log)
         tab_log = ttk.Frame(self.notebook)
         self.notebook.add(tab_log, text="Registro de eventos")
-
         self.log_text = tk.Text(tab_log, height=25, wrap=tk.WORD)
         self.log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        log_scroll = ttk.Scrollbar(tab_log, orient=tk.VERTICAL, command=self.log_text.yview)
-        log_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self.log_text.configure(yscrollcommand=log_scroll.set)
+        scroll_log = ttk.Scrollbar(tab_log, orient=tk.VERTICAL, command=self.log_text.yview)
+        scroll_log.pack(side=tk.RIGHT, fill=tk.Y)
+        self.log_text.configure(yscrollcommand=scroll_log.set)
 
-        # Pestaña 3: Graficos (opcional, requiere matplotlib)
-        tab_charts = ttk.Frame(self.notebook)
-        self.notebook.add(tab_charts, text="Graficos")
-
-        # Combo para elegir tipo de grafico
-        chart_ctrl_frame = ttk.Frame(tab_charts)
-        chart_ctrl_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(chart_ctrl_frame, text="Tipo de grafico:").pack(side=tk.LEFT, padx=5)
-        self.chart_var = tk.StringVar()
-        self.chart_combo = ttk.Combobox(chart_ctrl_frame, textvariable=self.chart_var,
-                                        values=("Conteo por grupo", "Suma de meta por municipio",
-                                                "Distribucion por actor"), state="readonly", width=25)
-        self.chart_combo.pack(side=tk.LEFT, padx=5)
-        self.chart_combo.current(0)
-        ttk.Button(chart_ctrl_frame, text="Actualizar grafico", command=self.draw_chart).pack(side=tk.LEFT, padx=5)
-
-        # Contenedor para el grafico
-        self.chart_container = ttk.Frame(tab_charts)
-        self.chart_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        self._mpl = None
-
-        # ---------- Barra de herramientas inferior (export/import) ----------
-        toolbar = ttk.Frame(root)
-        toolbar.pack(side=tk.BOTTOM, fill=tk.X, padx=8, pady=4)
-        ttk.Button(toolbar, text="Exportar JSON", command=self.export_json).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="Exportar CSV", command=self.export_csv).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="Guardar SQLite", command=self.save_sqlite).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="Cargar JSON", command=self.load_json).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="Cargar CSV", command=self.load_csv).pack(side=tk.LEFT, padx=2)
-        ttk.Button(toolbar, text="Cargar SQLite", command=self.load_sqlite).pack(side=tk.LEFT, padx=2)
-
-        # Variable para resaltar
-        self.highlighted_code = None
+        # Variable para resaltar un nodo
+        self.codigo_resaltado = None
 
         # Dibujar estado inicial
-        self.draw_list()
-        self.update_table()
+        self.dibujar_lista()
+        self.actualizar_tabla()
 
     # ------------------------------------------------------------
-    # Autocompletado
+    # Funciones auxiliares: Log y obtención de datos
     # ------------------------------------------------------------
-    def on_code_change(self, event):
-        """Al escribir un codigo, si existe en DATOS_REFERENCIA, autocompleta."""
-        code = self.code_var.get().strip()
-        if code in DATOS_REFERENCIA:
-            data = DATOS_REFERENCIA[code]
-            self.name_var.set(data["nombre"])
-            self.meta_var.set(str(data["meta"]))
-            self.municipio_var.set(data["municipio"])
-            self.actor_var.set(data["actor"])
-            self.grupo_var.set(data["grupo"])
-        else:
-            # Si no coincide, no borramos lo que el usuario ya haya escrito
-            pass
-
-    def on_table_select(self, event):
-        """Al seleccionar un elemento de la tabla, autocompletar el formulario."""
-        selected = self.tree.selection()
-        if not selected:
-            return
-        item = self.tree.item(selected[0])
-        values = item["values"]
-        if values:
-            codigo = values[0]
-            self.code_var.set(codigo)
-            # Activar autocompletado manualmente
-            if codigo in DATOS_REFERENCIA:
-                data = DATOS_REFERENCIA[codigo]
-                self.name_var.set(data["nombre"])
-                self.meta_var.set(str(data["meta"]))
-                self.municipio_var.set(data["municipio"])
-                self.actor_var.set(data["actor"])
-                self.grupo_var.set(data["grupo"])
-
-    # ------------------------------------------------------------
-    # Log
-    # ------------------------------------------------------------
-    def log(self, msg: str) -> None:
+    def log(self, mensaje):
+        """Agrega un mensaje al registro con timestamp."""
         timestamp = time.strftime("%H:%M:%S")
-        self.log_text.insert(tk.END, f"[{timestamp}] {msg}\n")
+        self.log_text.insert(tk.END, f"[{timestamp}] {mensaje}\n")
         self.log_text.see(tk.END)
 
-    # ------------------------------------------------------------
-    # Obtener datos del formulario
-    # ------------------------------------------------------------
-    def get_data(self) -> dict:
-        code = self.code_var.get().strip()
-        name = self.name_var.get().strip() or "(sin nombre)"
+    def obtener_iniciativa_desde_formulario(self):
+        """Crea y retorna un objeto Iniciativa con los datos ingresados."""
+        codigo = self.codigo_var.get().strip()
+        nombre = self.nombre_var.get().strip() or "(sin nombre)"
         meta_str = self.meta_var.get().strip()
         try:
             meta = int(meta_str) if meta_str else 0
@@ -361,162 +201,165 @@ class App:
         municipio = self.municipio_var.get().strip()
         actor = self.actor_var.get().strip()
         grupo = self.grupo_var.get().strip()
-        return {
-            "id": code or f"N{int(time.time())}",
-            "nombre": name,
-            "meta": meta,
-            "municipio": municipio,
-            "actor": actor,
-            "grupo": grupo
-        }
+        return Iniciativa(codigo, nombre, meta, municipio, actor, grupo)
 
     # ------------------------------------------------------------
-    # Operaciones
+    # Operaciones de la interfaz
     # ------------------------------------------------------------
-    def add_front(self):
-        data = self.get_data()
-        if not data["id"]:
-            messagebox.showwarning("Entrada", "Ingrese un codigo")
+    def insertar_frente(self):
+        ini = self.obtener_iniciativa_desde_formulario()
+        if not ini.codigo:
+            messagebox.showwarning("Entrada", "El codigo es obligatorio.")
             return
-        self.lst.push_front(data)
-        self.log(f"Insertado al frente: {data['id']}")
-        self.draw_list()
-        self.update_table()
+        self.lista.insertar_al_frente(ini)
+        self.log(f"Insertado al frente: {ini.codigo}")
+        self.dibujar_lista()
+        self.actualizar_tabla()
 
-    def add_back(self):
-        data = self.get_data()
-        if not data["id"]:
-            messagebox.showwarning("Entrada", "Ingrese un codigo")
+    def insertar_final(self):
+        ini = self.obtener_iniciativa_desde_formulario()
+        if not ini.codigo:
+            messagebox.showwarning("Entrada", "El codigo es obligatorio.")
             return
-        self.lst.push_back(data)
-        self.log(f"Insertado al final: {data['id']}")
-        self.draw_list()
-        self.update_table()
+        self.lista.insertar_al_final(ini)
+        self.log(f"Insertado al final: {ini.codigo}")
+        self.dibujar_lista()
+        self.actualizar_tabla()
 
-    def find_node(self):
-        code = self.code_var.get().strip()
-        if not code:
-            messagebox.showwarning("Entrada", "Ingrese un codigo")
+    def buscar(self):
+        codigo = self.codigo_var.get().strip()
+        if not codigo:
+            messagebox.showwarning("Entrada", "Ingrese un codigo a buscar")
             return
-        node = self.lst.find(lambda d: d and d.get('id') == code)
-        if node:
-            self.highlighted_code = code
-            self.log(f"Encontrado: {code}")
+        nodo = self.lista.buscar_por_codigo(codigo)
+        if nodo:
+            self.codigo_resaltado = codigo
+            self.log(f"Encontrado: {codigo}")
         else:
-            self.highlighted_code = None
-            self.log(f"No encontrado: {code}")
-        self.draw_list()
+            self.codigo_resaltado = None
+            self.log(f"No encontrado: {codigo}")
+        self.dibujar_lista()
 
-    def remove_node_by_code(self):
-        code = self.code_var.get().strip()
-        if not code:
-            messagebox.showwarning("Entrada", "Ingrese un codigo")
+    def eliminar(self):
+        codigo = self.codigo_var.get().strip()
+        if not codigo:
+            messagebox.showwarning("Entrada", "Ingrese un codigo a eliminar")
             return
-        node = self.lst.find(lambda d: d and d.get('id') == code)
-        if node:
-            removed = self.lst.remove_node(node)
-            self.log(f"Eliminado: {removed.get('id')}")
-            self.highlighted_code = None
-            self.draw_list()
-            self.update_table()
+        nodo = self.lista.buscar_por_codigo(codigo)
+        if nodo:
+            eliminado = self.lista.eliminar_nodo(nodo)
+            self.log(f"Eliminado: {eliminado.codigo}")
+            self.codigo_resaltado = None
+            self.dibujar_lista()
+            self.actualizar_tabla()
         else:
-            self.log(f"No encontrado: {code}")
+            self.log(f"No se encontro el codigo {codigo}")
 
-    def clear_list(self):
-        self.lst.clear()
+    def limpiar(self):
+        self.lista.limpiar()
         self.log("Lista limpiada")
-        self.highlighted_code = None
-        self.draw_list()
-        self.update_table()
+        self.codigo_resaltado = None
+        self.dibujar_lista()
+        self.actualizar_tabla()
 
     # ------------------------------------------------------------
-    # Dibujo del lienzo (con zoom y scroll)
+    # Dibujo del lienzo (con zoom y desplazamiento)
     # ------------------------------------------------------------
-    def draw_list(self):
+    def dibujar_lista(self):
+        """Dibuja los nodos en el canvas aplicando zoom y offset."""
         self.canvas.delete("all")
-        items = self.lst.to_list_forward()
-        if not items:
-            self.canvas.create_text(self.canvas_width//2, self.canvas_height//2,
+        iniciativas = self.lista.recorrer_adelante()
+
+        if not iniciativas:
+            self.canvas.create_text(self.canvas_ancho//2, self.canvas_alto//2,
                                     text="(lista vacia)", fill="gray", font=("Arial", 16))
             return
 
-        scale = self.zoom_level
+        escala = self.zoom
         ox = self.offset_x
         oy = self.offset_y
 
-        colores_grupo = {
-            "Ciencias Sociales": "#FFD1DC",
-            "Ingenieria": "#B0D9FF",
-            "Ciencias Medicas": "#C1E1C1",
-            "Tecnologia": "#FCE6A9",
-            "Agro": "#D4C4A8",
-            "Innovacion social": "#E6CCFF",
-            "Otro": "#D3D3D3"
-        }
+        x = PADDING_X * escala + ox
+        y = PADDING_Y * escala + oy
+        ancho = ANCHO_NODO * escala
+        alto = ALTO_NODO * escala
 
-        x = PADDING_X * scale + ox
-        y = PADDING_Y * scale + oy
-        width = NODE_WIDTH * scale
-        height = NODE_HEIGHT * scale
-        positions = []
+        posiciones = []  # Guarda coordenadas para dibujar flechas
 
-        for i, data in enumerate(items):
-            x1 = x + i * (width + 20*scale)
+        for i, ini in enumerate(iniciativas):
+            x1 = x + i * (ancho + 20*escala)
             y1 = y
-            x2 = x1 + width
-            y2 = y1 + height
+            x2 = x1 + ancho
+            y2 = y1 + alto
 
-            grupo = data.get('grupo', 'Otro')
-            fill = colores_grupo.get(grupo, "#def")
-            if self.highlighted_code is not None and data.get('id') == self.highlighted_code:
-                fill = "#FFD700"
+            # Color según grupo o resaltado
+            grupo = ini.grupo
+            color_base = COLORES_GRUPO.get(grupo, "#def")
+            if self.codigo_resaltado is not None and ini.codigo == self.codigo_resaltado:
+                relleno = "#FFD700"  # Dorado para resaltar
+            else:
+                relleno = color_base
 
-            self.canvas.create_rectangle(x1, y1, x2, y2, fill=fill, outline="#333", width=2)
-            font_size = max(6, int(9 * scale))
-            texto = f"{data.get('id')}\n{data.get('nombre')}\nMeta: {data.get('meta')}"
+            # Dibujar rectángulo
+            self.canvas.create_rectangle(x1, y1, x2, y2, fill=relleno, outline="#333", width=2)
+            # Dibujar texto dentro
+            tam_fuente = int(9 * escala)
+            if tam_fuente < 6:
+                tam_fuente = 6
+            texto = f"{ini.codigo}\n{ini.nombre}\nMeta: {ini.meta}"
             self.canvas.create_text((x1+x2)//2, (y1+y2)//2, text=texto,
-                                    font=("Arial", font_size), justify=tk.CENTER)
-            positions.append((x1, y1, x2, y2))
+                                    font=("Arial", tam_fuente), justify=tk.CENTER)
+            posiciones.append((x1, y1, x2, y2))
 
-        for i in range(len(positions)-1):
-            x1 = positions[i][2]
-            y1 = (positions[i][1] + positions[i][3]) // 2
-            x2 = positions[i+1][0]
-            y2 = (positions[i+1][1] + positions[i+1][3]) // 2
+        # Dibujar flechas entre nodos (siguiente)
+        for i in range(len(posiciones)-1):
+            x1 = posiciones[i][2]
+            y1 = (posiciones[i][1] + posiciones[i][3]) // 2
+            x2 = posiciones[i+1][0]
+            y2 = (posiciones[i+1][1] + posiciones[i+1][3]) // 2
             self.canvas.create_line(x1, y1, x2, y2, arrow=tk.LAST, width=2, fill="#555")
 
-        if len(positions) > 1:
-            last = positions[-1]
-            first = positions[0]
-            lx = last[2]
-            ly = (last[1] + last[3]) // 2
-            fx = first[0]
-            fy = (first[1] + first[3]) // 2
+        # Dibujar flecha circular (último -> primero) para mostrar circularidad
+        if len(posiciones) > 1:
+            ult = posiciones[-1]
+            prim = posiciones[0]
+            lx = ult[2]
+            ly = (ult[1] + ult[3]) // 2
+            fx = prim[0]
+            fy = (prim[1] + prim[3]) // 2
             midx = (lx + fx) / 2
-            self.canvas.create_line(lx, ly, midx, ly - 70*scale, fx, fy,
+            self.canvas.create_line(lx, ly, midx, ly - 70*escala, fx, fy,
                                     smooth=True, arrow=tk.LAST, width=2, fill="#777", dash=(4,2))
 
-        self.canvas.config(scrollregion=(0, 0, self.canvas_width, self.canvas_height))
+        self.canvas.config(scrollregion=(0, 0, self.canvas_ancho, self.canvas_alto))
 
     # ------------------------------------------------------------
-    # Zoom y arrastre
+    # Eventos de mouse (Zoom y Pan)
     # ------------------------------------------------------------
-    def on_mousewheel(self, event):
+    def on_scroll(self, event):
+        """Desplazamiento vertical con la rueda."""
         self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
 
     def on_zoom(self, event):
+        """Zoom con Ctrl + rueda del mouse."""
         if event.delta > 0:
-            self.zoom_level *= ZOOM_FACTOR
+            self.zoom *= ZOOM_FACTOR
         else:
-            self.zoom_level /= ZOOM_FACTOR
-        self.zoom_level = max(0.2, min(5.0, self.zoom_level))
-        self.draw_list()
+            self.zoom /= ZOOM_FACTOR
+        # Limitar zoom
+        if self.zoom < 0.2:
+            self.zoom = 0.2
+        if self.zoom > 5.0:
+            self.zoom = 5.0
+        self.dibujar_lista()
 
-    def start_drag(self, event):
+    def iniciar_arrastre(self, event):
+        """Guarda la posición inicial para el arrastre."""
         self.drag_start_x = event.x
         self.drag_start_y = event.y
 
-    def on_drag(self, event):
+    def arrastrar(self, event):
+        """Desplaza el canvas al arrastrar con el mouse."""
         dx = event.x - self.drag_start_x
         dy = event.y - self.drag_start_y
         self.canvas.xview_scroll(-dx, "units")
@@ -525,236 +368,149 @@ class App:
         self.drag_start_y = event.y
 
     # ------------------------------------------------------------
-    # Tabla
+    # Actualizar tabla
     # ------------------------------------------------------------
-    def update_table(self):
-        for row in self.tree.get_children():
-            self.tree.delete(row)
-        for item in self.lst.to_list_forward():
-            self.tree.insert("", tk.END, values=(
-                item.get('id', ''),
-                item.get('nombre', ''),
-                item.get('meta', 0),
-                item.get('municipio', ''),
-                item.get('actor', ''),
-                item.get('grupo', '')
+    def actualizar_tabla(self):
+        """Limpia y recarga la tabla con los datos actuales."""
+        for row in self.tabla.get_children():
+            self.tabla.delete(row)
+        for ini in self.lista.recorrer_adelante():
+            self.tabla.insert("", tk.END, values=(
+                ini.codigo, ini.nombre, ini.meta, ini.municipio, ini.actor, ini.grupo
             ))
 
     # ------------------------------------------------------------
     # Alertas
     # ------------------------------------------------------------
-    def show_alerts(self):
-        items = self.lst.to_list_forward()
-        if not items:
-            messagebox.showinfo("Alertas", "No hay iniciativas")
+    def mostrar_alertas(self):
+        """Verifica si hay metas que superen el umbral (1000)."""
+        iniciativas = self.lista.recorrer_adelante()
+        if not iniciativas:
+            messagebox.showinfo("Alertas", "No hay iniciativas registradas.")
             return
         umbral = 1000
         alertas = []
-        for item in items:
-            meta = item.get('meta', 0)
-            if isinstance(meta, str):
-                try:
-                    meta = int(meta)
-                except:
-                    meta = 0
-            if meta > umbral:
-                alertas.append(f"{item.get('id')} - {item.get('nombre')}: meta {meta}")
+        for ini in iniciativas:
+            if ini.meta > umbral:
+                alertas.append(f"Iniciativa {ini.codigo} - {ini.nombre}: meta {ini.meta} > {umbral}")
         if alertas:
             messagebox.showwarning("Alertas de meta", "\n".join(alertas))
         else:
-            messagebox.showinfo("Alertas", "Sin alertas")
+            messagebox.showinfo("Alertas", "No se detectaron alertas.")
 
     # ------------------------------------------------------------
-    # Demo paso a paso
+    # DEMOSTRACIÓN PASO A PASO (MEJORADA Y VARIADA)
     # ------------------------------------------------------------
-    def start_demo_thread(self):
-        t = threading.Thread(target=self.demo_sequence, daemon=True)
+    def iniciar_demo(self):
+        """Lanza la demostración en un hilo separado para no bloquear la GUI."""
+        t = threading.Thread(target=self.demo_paso_a_paso, daemon=True)
         t.start()
 
-    def demo_sequence(self):
-        self.log("Iniciando demo...")
-        self.lst.clear()
-        self.root.after(0, self.draw_list)
-        self.root.after(0, self.update_table)
-        time.sleep(0.6)
+    def demo_paso_a_paso(self):
+        """
+        Secuencia de demostración que muestra todas las operaciones
+        de forma variada, usando los códigos reales del plan de desarrollo.
+        """
+        self.log("=== INICIO DE DEMOSTRACION PASO A PASO ===")
+        self.lista.limpiar()
+        self.root.after(0, self.dibujar_lista)
+        self.root.after(0, self.actualizar_tabla)
+        time.sleep(0.5)
 
-        ejemplos = [
-            {"id": "SCT02", "nombre": "Investigacion capacidades CTel", "meta": 1,
-             "municipio": "Bogota", "actor": "Gobernacion", "grupo": "Ciencias Sociales"},
-            {"id": "SCT03", "nombre": "Red centros innovacion", "meta": 1,
-             "municipio": "Soacha", "actor": "Universidad", "grupo": "Ingenieria"},
-            {"id": "STI02", "nombre": "Capacitar en IA y blockchain", "meta": 30000,
-             "municipio": "Zipaquira", "actor": "Empresa privada", "grupo": "Tecnologia"},
-            {"id": "SCT08", "nombre": "Proyectos agropecuarios CTel", "meta": 2000,
-             "municipio": "Facatativa", "actor": "Asociacion campesina", "grupo": "Agro"},
+        # 1. Insertar 6 iniciativas al final (usando códigos reales de las tablas)
+        datos_ejemplo = [
+            Iniciativa("SCT02", "Investigacion capacidades CTel", 1, "Bogota", "Gobernacion", "Ciencias Sociales"),
+            Iniciativa("SCT03", "Red centros innovacion", 1, "Soacha", "Universidad", "Ingenieria"),
+            Iniciativa("STI02", "Capacitar en IA y blockchain", 30000, "Zipaquira", "Empresa privada", "Tecnologia"),
+            Iniciativa("SCT08", "Proyectos agropecuarios CTel", 2000, "Facatativa", "Asociacion campesina", "Agro"),
+            Iniciativa("SCT06", "Beneficiar empresas con CTeI", 200, "Bogota", "Gobernacion", "Innovacion social"),
+            Iniciativa("SCT13", "Impulsar semilleros investigacion", 15, "Girardot", "Alcaldia", "Ciencias Sociales")
         ]
-        for ini in ejemplos:
-            self.lst.push_back(ini)
-            self.log(f"Insertado: {ini['id']}")
-            self.root.after(0, self.draw_list)
-            self.root.after(0, self.update_table)
+
+        self.log("Paso 1: Insertar 6 iniciativas al final (push_back)")
+        for ini in datos_ejemplo:
+            self.lista.insertar_al_final(ini)
+            self.log(f"  Insertado: {ini.codigo} - {ini.nombre}")
+            self.root.after(0, self.dibujar_lista)
+            self.root.after(0, self.actualizar_tabla)
+            time.sleep(0.6)
+
+        # 2. Insertar una prioridad al frente
+        prioridad = Iniciativa("PRI01", "Laboratorio jovenes innovadores", 250,
+                               "Chia", "Alcaldia", "Innovacion social")
+        self.log("Paso 2: Insertar una iniciativa prioritaria al frente (push_front)")
+        self.lista.insertar_al_frente(prioridad)
+        self.log(f"  Insertado al frente: {prioridad.codigo}")
+        self.root.after(0, self.dibujar_lista)
+        self.root.after(0, self.actualizar_tabla)
+        time.sleep(1.0)
+
+        # 3. Recorridos (adelante y atrás)
+        self.log("Paso 3: Mostrar recorridos (adelante y atras)")
+        adelante = [ini.codigo for ini in self.lista.recorrer_adelante()]
+        atras = [ini.codigo for ini in self.lista.recorrer_atras()]
+        self.log(f"  Adelante: {adelante}")
+        self.log(f"  Atras: {atras}")
+        time.sleep(1.0)
+
+        # 4. Buscar un elemento existente
+        codigo_buscar = 'STI02'
+        self.log(f"Paso 4: Buscar el codigo '{codigo_buscar}'")
+        nodo = self.lista.buscar_por_codigo(codigo_buscar)
+        if nodo:
+            self.codigo_resaltado = codigo_buscar
+            self.log(f"  Encontrado: {codigo_buscar}")
+            self.root.after(0, self.dibujar_lista)
+            time.sleep(1.2)
+        else:
+            self.log(f"  No encontrado: {codigo_buscar}")
+
+        # 5. Eliminar ese elemento
+        self.log(f"Paso 5: Eliminar el codigo '{codigo_buscar}'")
+        if nodo:
+            eliminado = self.lista.eliminar_nodo(nodo)
+            self.log(f"  Eliminado: {eliminado.codigo}")
+            self.codigo_resaltado = None
+            self.root.after(0, self.dibujar_lista)
+            self.root.after(0, self.actualizar_tabla)
+            time.sleep(1.0)
+
+        # 6. Insertar uno nuevo al azar (simulando una nueva iniciativa)
+        nuevo = Iniciativa("STI07", "Centro de IA en Cundinamarca", 3,
+                           "Cajica", "Universidad", "Tecnologia")
+        self.log("Paso 6: Insertar una nueva iniciativa al final (STI07)")
+        self.lista.insertar_al_final(nuevo)
+        self.log(f"  Insertado: {nuevo.codigo}")
+        self.root.after(0, self.dibujar_lista)
+        self.root.after(0, self.actualizar_tabla)
+        time.sleep(0.8)
+
+        # 7. Eliminar el primero y el ultimo (operaciones de extremo)
+        self.log("Paso 7: Eliminar el primer y ultimo nodo")
+        if not self.lista.esta_vacia():
+            primero = self.lista.eliminar_primero()
+            self.log(f"  Eliminado primero: {primero.codigo}")
+            self.root.after(0, self.dibujar_lista)
+            self.root.after(0, self.actualizar_tabla)
+            time.sleep(0.8)
+        if not self.lista.esta_vacia():
+            ultimo = self.lista.eliminar_ultimo()
+            self.log(f"  Eliminado ultimo: {ultimo.codigo}")
+            self.root.after(0, self.dibujar_lista)
+            self.root.after(0, self.actualizar_tabla)
             time.sleep(0.8)
 
-        prioridad = {"id": "PRI01", "nombre": "Laboratorio jovenes innovadores",
-                     "meta": 250, "municipio": "Girardot", "actor": "Alcaldia",
-                     "grupo": "Innovacion social"}
-        self.lst.push_front(prioridad)
-        self.log(f"Insertado al frente: {prioridad['id']}")
-        self.root.after(0, self.draw_list)
-        self.root.after(0, self.update_table)
-        time.sleep(1.0)
-
-        code = 'STI02'
-        node = self.lst.find(lambda d: d and d.get('id') == code)
-        if node:
-            self.highlighted_code = code
-            self.log(f"Busqueda: encontrado {code}")
-        else:
-            self.log(f"Busqueda: no encontrado {code}")
-        self.root.after(0, self.draw_list)
-        time.sleep(1.2)
-
-        if node:
-            removed = self.lst.remove_node(node)
-            self.log(f"Eliminado: {removed.get('id')}")
-            self.highlighted_code = None
-            self.root.after(0, self.draw_list)
-            self.root.after(0, self.update_table)
-        time.sleep(1.0)
-
-        if not self.lst.is_empty():
-            first = self.lst.remove_first()
-            time.sleep(0.4)
-            last = None
-            if not self.lst.is_empty():
-                last = self.lst.remove_last()
-            self.log(f"Eliminado primero: {first.get('id')}")
-            if last:
-                self.log(f"Eliminado ultimo: {last.get('id')}")
-            self.root.after(0, self.draw_list)
-            self.root.after(0, self.update_table)
-
-        self.log("Demo finalizada")
-
-    # ------------------------------------------------------------
-    # Graficos (matplotlib)
-    # ------------------------------------------------------------
-    def _ensure_matplotlib(self):
-        if self._mpl is not None:
-            return
-        try:
-            mpl = importlib.import_module('matplotlib')
-            mpl.use('Agg')
-            pyplot = importlib.import_module('matplotlib.pyplot')
-            Figure = importlib.import_module('matplotlib.figure').Figure
-            tkagg = importlib.import_module('matplotlib.backends.backend_tkagg')
-            self._mpl = {'mpl': mpl, 'pyplot': pyplot, 'Figure': Figure, 'tkagg': tkagg}
-        except Exception:
-            self._mpl = None
-            raise
-
-    def draw_chart(self):
-        try:
-            self._ensure_matplotlib()
-        except Exception:
-            messagebox.showerror("Error", "matplotlib no instalado")
-            return
-
-        kind = self.chart_var.get()
-        pyplot = self._mpl['pyplot']
-        Figure = self._mpl['Figure']
-        tkagg = self._mpl['tkagg']
-
-        items = self.lst.to_list_forward()
-        for child in self.chart_container.winfo_children():
-            child.destroy()
-
-        fig = Figure(figsize=(5, 4), dpi=100)
-        ax = fig.add_subplot(111)
-
-        if kind == "Conteo por grupo":
-            counts = {}
-            for it in items:
-                g = it.get('grupo') or 'Sin grupo'
-                counts[g] = counts.get(g, 0) + 1
-            ax.bar(counts.keys(), counts.values(), color='#4CAF50')
-            ax.set_title('Conteo por grupo')
-            ax.set_ylabel('Cantidad')
-            ax.tick_params(axis='x', rotation=30)
-        elif kind == "Suma de meta por municipio":
-            sums = {}
-            for it in items:
-                m = it.get('municipio') or 'Sin municipio'
-                try:
-                    val = int(it.get('meta') or 0)
-                except:
-                    val = 0
-                sums[m] = sums.get(m, 0) + val
-            ax.bar(sums.keys(), sums.values(), color='#2196F3')
-            ax.set_title('Suma de meta por municipio')
-            ax.set_ylabel('Meta (sum)')
-            ax.tick_params(axis='x', rotation=30)
-        else:  # Distribucion por actor
-            counts = {}
-            for it in items:
-                a = it.get('actor') or 'Sin actor'
-                counts[a] = counts.get(a, 0) + 1
-            ax.pie(counts.values(), labels=counts.keys(), autopct='%1.1f%%')
-            ax.set_title('Distribucion por actor')
-
-        fig.tight_layout()
-        canvas = tkagg.FigureCanvasTkAgg(fig, master=self.chart_container)
-        canvas.draw()
-        widget = canvas.get_tk_widget()
-        widget.pack(fill=tk.BOTH, expand=True)
-
-    # ------------------------------------------------------------
-    # Export/Import
-    # ------------------------------------------------------------
-    def export_json(self):
-        path = filedialog.asksaveasfilename(defaultextension='.json', filetypes=[('JSON', '*.json')])
-        if path:
-            self.lst.save_to_json(path)
-            self.log(f"Exportado JSON: {path}")
-
-    def export_csv(self):
-        path = filedialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV', '*.csv')])
-        if path:
-            self.lst.save_to_csv(path, fieldnames=['id','nombre','meta','municipio','actor','grupo'])
-            self.log(f"Exportado CSV: {path}")
-
-    def save_sqlite(self):
-        path = filedialog.asksaveasfilename(defaultextension='.db', filetypes=[('SQLite', '*.db')])
-        if path:
-            self.lst.save_to_sqlite(path)
-            self.log(f"Guardado SQLite: {path}")
-
-    def load_json(self):
-        path = filedialog.askopenfilename(filetypes=[('JSON', '*.json')])
-        if path:
-            self.lst.load_from_json(path)
-            self.log(f"Cargado JSON: {path}")
-            self.draw_list()
-            self.update_table()
-
-    def load_csv(self):
-        path = filedialog.askopenfilename(filetypes=[('CSV', '*.csv')])
-        if path:
-            self.lst.load_from_csv(path)
-            self.log(f"Cargado CSV: {path}")
-            self.draw_list()
-            self.update_table()
-
-    def load_sqlite(self):
-        path = filedialog.askopenfilename(filetypes=[('SQLite', '*.db')])
-        if path:
-            self.lst.load_from_sqlite(path)
-            self.log(f"Cargado SQLite: {path}")
-            self.draw_list()
-            self.update_table()
+        # 8. Mostrar estado final
+        self.log("Paso 8: Estado final de la lista")
+        final = [ini.codigo for ini in self.lista.recorrer_adelante()]
+        self.log(f"  Lista final: {final} (tamaño: {len(self.lista)})")
+        self.log("=== DEMOSTRACION FINALIZADA ===")
 
 
-if __name__ == '__main__':
+# ------------------------------------------------------------
+# Punto de entrada
+# ------------------------------------------------------------
+if __name__ == "__main__":
     root = tk.Tk()
     app = App(root)
     root.mainloop()
