@@ -1,0 +1,36 @@
+# Archivos de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Entornos virtuales
+venv/
+env/
+ENV/
+.venv/
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Archivos de datos generados
+*.json
+*.db
+*.sqlite
+*.csv
+
+# Documentos temporales
+~$*.docx
+~$*.pdf
